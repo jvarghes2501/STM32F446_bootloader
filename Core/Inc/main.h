@@ -51,8 +51,25 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
-void UART_read_data(void);
+void uart_printf (const char *fmt, ...);
+void BL_send_ack(uint8_t command_code, uint8_t len);
+void BL_send_nack(void);
+void BL_UART_read_data(void);
+uint8_t BL_CRC_check(uint8_t *pData, uint32_t len, uint32_t crc_host);
 void userApp(void);
+
+/*Bootloader handler function prototypes*/
+void BL_getver_handler(uint8_t *rx_buffer);
+void BL_gethelp_handler(uint8_t *rx_buffer);
+void BL_getcid_handler(uint8_t *rx_buffer);
+void BL_getrdp_handler(uint8_t *rx_buffer);
+void BL_jump_handler(uint8_t *rx_buffer);
+void BL_flash_erase_handler(uint8_t *rx_buffer);
+void BL_mem_write_handler(uint8_t *rx_buffer);
+void BL_control_rw_protect_handler(uint8_t *rx_buffer);
+void BL_mem_read_handler(uint8_t *rx_buffer);
+void BL_read_sector_status_handler(uint8_t *rx_buffer);
+void BL_read_otp_handler(uint8_t *rx_buffer);
 
 /* USER CODE BEGIN EFP */
 
@@ -76,6 +93,30 @@ void userApp(void);
 
 /* USER CODE BEGIN Private defines */
 #define FLASH_SECTOR2_BASE_ADDRESS 0x08008000U
+#define BL_RX_SIZE	200
+
+#define BL_VERSION	0x10
+
+#define BL_ACK 		0xA5
+#define BL_NACK		0x7F
+
+#define VERIFY_CRC_SUCCESS 	0
+#define VERIFY_CRC_FAIL		1
+/*Bootloader command codes*/
+# define BL_GET_VER				0x51 // command used to read the bootloader version for the MCU
+# define BL_GET_HELP			0x52 // command used to show the command apis supported by the bootloader
+# define BL_GET_CID				0x53 //command to read the MCU chip identification number
+# define BL_GET_RDP_STATUS		0x54 // command to read the flash read protection privelege
+# define BL_JUMP_TO_ADDR		0x55 //command to jump bootloader to specified address
+# define BL_FLASH_ERASE			0x56 //command to erase all or sections of the user flash
+# define BL_MEM_WRITE			0x57 //command used to write data into different memories of the MCU
+# define BL_MEM_READ			0x58 //command used to read data from different memories of the MCU
+# define BL_CONTROL_RW_PROTECT	0x59 //command used to enable or disable read/write priveleges on different sectors of the MCU
+# define BL_READ_SECTOR_STATUS	0x60 //command used to read privelegs on sectors
+# define BL_OTP_READ			0x61 // command used to read OTP
+
+
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

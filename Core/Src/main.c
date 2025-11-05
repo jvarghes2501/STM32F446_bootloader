@@ -18,6 +18,11 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stm32f4xx_hal.h"  // Change to your STM32 series header
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -44,7 +49,8 @@ CRC_HandleTypeDef hcrc;
 
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
-
+#define Command_UART	&huart2
+#define Data_UART 		&huart3
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -62,6 +68,7 @@ static void MX_USART3_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 char data[] = "Hello from Bootloader\r\n";
+uint8_t BL_rx_buff[BL_RX_SIZE];
 /* USER CODE END 0 */
 
 /**
@@ -103,25 +110,49 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
  if(HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin)==GPIO_PIN_RESET){
-	 UART_read_data();
+	 uart_printf("Reset button pressed...Transition to BL mode\n\r");
+	 BL_UART_read_data();
  }
  else{
+	 uart_printf("Executing user app\n\r");
 	 userApp();
  }
   /* USER CODE END 3 */
 }
 
-void UART_read_data(void)
+void BL_UART_read_data(void)
 {
+	uint8_t packet_len = 0;
+	while (1)
+	{
+		memset(BL_rx_buff, 0 , BL_RX_SIZE); //initialize with 0s
 
+		// read and decode the commands coming from host
+		HAL_UART_Receive(Command_UART, BL_rx_buff, 1, HAL_MAX_DELAY); //read one byte from the host, which is the length field of the command packet
+		packet_len = BL_rx_buff[0];
+		HAL_UART_Receive(Command_UART, &BL_rx_buff[1], packet_len, HAL_MAX_DELAY);
+
+		switch (BL_rx_buff[1])
+		{
+			case BL_GET_VER:
+				BL_getver_handler(BL_rx_buff);
+				break;
+			default:
+				uart_printf("Invalid command received from host\r\n");
+		}
+
+	}
 }
 
 void userApp(void){
+	uart_printf("Running userApp func\n\r");
+
 	// function pointer to hold the address of the reset handler of the user application
 	void (*app_reset_handler)(void);
 
 	// configure the MSP by reading the value from the base address of the sector 2
 	uint32_t MSP = *(volatile uint32_t *) FLASH_SECTOR2_BASE_ADDRESS;
+	uart_printf("MSP value: %#x\n\r", MSP);
 
 	//set the MSP value
 	__set_MSP(MSP);
@@ -131,9 +162,81 @@ void userApp(void){
 
 	// jump to reset handler of user application
 	app_reset_handler = (void *) resethandler_address;
+	uart_printf("Application reset handler addr: %#x\n\r", app_reset_handler);
+
 	app_reset_handler();
 }
 
+void uart_printf (const char *fmt, ...) {
+    char buffer[128];  // Adjust size as needed
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    HAL_UART_Transmit(&huart2, (uint8_t *)buffer, strlen(buffer), HAL_MAX_DELAY);
+}
+
+
+
+/*Bootloader handler function implementations*/
+void BL_getver_handler(uint8_t *rx_buffer)
+{
+	uint32_t cmd_packet_len = BL_rx_buff[0] + 1;
+	uint8_t BL_version;
+	// extract CRC sent by host
+	uint32_t host_crc = *((uint32_t*)(BL_rx_buff + cmd_packet_len - 4));
+
+	if (!BL_CRC_check(&BL_rx_buff[0], cmd_packet_len-4, host_crc)){
+		uart_printf("Check sum success\r\n");
+		BL_version = (uint8_t)BL_VERSION;
+		BL_send_ack(BL_rx_buff[0], 1);
+		uart_printf("Bootloader version: %d %#x\r\n",BL_version,BL_version );
+
+	}else{
+		uart_printf("Check sum success\r\n");
+		BL_send_nack();
+	}
+}
+void BL_gethelp_handler(uint8_t *rx_buffer)
+{
+
+}
+void BL_getcid_handler(uint8_t *rx_buffer)
+{
+
+}
+void BL_getrdp_handler(uint8_t *rx_buffer)
+{
+
+}
+void BL_jump_handler(uint8_t *rx_buffer)
+{
+
+}
+void BL_flash_erase_handler(uint8_t *rx_buffer)
+{
+
+}
+void BL_mem_write_handler(uint8_t *rx_buffer)
+{
+
+}
+void BL_control_rw_protect_handler(uint8_t *rx_buffer)
+{
+
+}
+void BL_mem_read_handler(uint8_t *rx_buffer)
+{
+
+}
+void BL_read_sector_status_handler(uint8_t *rx_buffer)
+{
+
+}
+void BL_read_otp_handler(uint8_t *rx_buffer)
+{
+
+}
 
 /**
   * @brief System Clock Configuration
@@ -312,7 +415,33 @@ static void MX_GPIO_Init(void)
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
+void BL_send_ack(uint8_t command_code, uint8_t len){
+	//send 2 bytes. first byte is ack and second len value
+	uint8_t buffer[2];
+	buffer[0] = BL_ACK;
+	buffer[1] = len;
+	HAL_UART_Transmit(Command_UART, buffer, 2, HAL_MAX_DELAY);
+}
 
+void BL_send_nack(void){
+	uint8_t nack=BL_NACK;
+	HAL_UART_Transmit(Command_UART, &nack, 1, HAL_MAX_DELAY);
+}
+
+uint8_t BL_CRC_check(uint8_t *pData, uint32_t len, uint32_t crc_host)
+{
+	uint32_t uwCRCValue = 0xff;
+	for (uint32_t i = 0; i<len; i++){
+		uint32_t i_data = pData[i];
+		uwCRCValue = HAL_CRC_Accumulate(&hcrc, &i_data, 1);
+	}
+	//reset CRC
+	__HAL_CRC_DR_RESET(&hcrc);
+	if(uwCRCValue == crc_host){
+		return VERIFY_CRC_SUCCESS;
+	}
+	return VERIFY_CRC_FAIL;
+}
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
