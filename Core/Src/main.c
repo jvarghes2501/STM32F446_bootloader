@@ -149,6 +149,8 @@ void BL_UART_read_data(void)
 				break;
 			case BL_GET_RDP_STATUS:
 				BL_getrdp_handler(BL_rx_buff);
+			case BL_FLASH_ERASE:
+				BL_flash_erase_handler(BL_rx_buff);
 			default:
 				uart_printf("Invalid command received from host\r\n");
 		}
@@ -254,26 +256,6 @@ void BL_flash_erase_handler(uint8_t *rx_buffer)
 		uart_printf("BL_DEBUG_MSG:checksum fail !!\n");
 		BL_send_nack();
 	}
-
-}
-void BL_mem_write_handler(uint8_t *rx_buffer)
-{
-
-}
-void BL_control_rw_protect_handler(uint8_t *rx_buffer)
-{
-
-}
-void BL_mem_read_handler(uint8_t *rx_buffer)
-{
-
-}
-void BL_read_sector_status_handler(uint8_t *rx_buffer)
-{
-
-}
-void BL_read_otp_handler(uint8_t *rx_buffer)
-{
 
 }
 

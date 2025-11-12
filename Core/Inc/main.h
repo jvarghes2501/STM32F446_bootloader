@@ -62,11 +62,7 @@ uint8_t flash_erase(uint8_t sector_num, uint8_t num_of_sectors);
 void BL_getver_handler(uint8_t *rx_buffer);
 void BL_getrdp_handler(uint8_t *rx_buffer);
 void BL_flash_erase_handler(uint8_t *rx_buffer);
-void BL_mem_write_handler(uint8_t *rx_buffer);
-void BL_control_rw_protect_handler(uint8_t *rx_buffer);
-void BL_mem_read_handler(uint8_t *rx_buffer);
-void BL_read_sector_status_handler(uint8_t *rx_buffer);
-void BL_read_otp_handler(uint8_t *rx_buffer);
+
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
@@ -102,11 +98,7 @@ void BL_read_otp_handler(uint8_t *rx_buffer);
 # define BL_GET_VER				0x51 // command used to read the bootloader version for the MCU
 # define BL_GET_RDP_STATUS		0x54 // command to read the flash read protection privelege
 # define BL_FLASH_ERASE			0x56 //command to erase all or sections of the user flash
-# define BL_MEM_WRITE			0x57 //command used to write data into different memories of the MCU
-# define BL_MEM_READ			0x58 //command used to read data from different memories of the MCU
-# define BL_CONTROL_RW_PROTECT	0x59 //command used to enable or disable read/write priveleges on different sectors of the MCU
-# define BL_READ_SECTOR_STATUS	0x60 //command used to read privelegs on sectors
-# define BL_OTP_READ			0x61 // command used to read OTP
+
 
 
 
