@@ -60,8 +60,6 @@ void userApp(void);
 
 /*Bootloader handler function prototypes*/
 void BL_getver_handler(uint8_t *rx_buffer);
-void BL_gethelp_handler(uint8_t *rx_buffer);
-void BL_getcid_handler(uint8_t *rx_buffer);
 void BL_getrdp_handler(uint8_t *rx_buffer);
 void BL_jump_handler(uint8_t *rx_buffer);
 void BL_flash_erase_handler(uint8_t *rx_buffer);

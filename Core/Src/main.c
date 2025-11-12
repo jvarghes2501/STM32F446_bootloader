@@ -51,6 +51,8 @@ UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 #define Command_UART	&huart2
 #define Data_UART 		&huart3
+
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -67,7 +69,6 @@ static void MX_USART3_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-char data[] = "Hello from Bootloader\r\n";
 uint8_t BL_rx_buff[BL_RX_SIZE];
 /* USER CODE END 0 */
 
@@ -107,7 +108,6 @@ int main(void)
 
   /* USER CODE END 2 */
 
-  /* Infinite loop */
   /* USER CODE BEGIN WHILE */
  if(HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin)==GPIO_PIN_RESET){
 	 uart_printf("Reset button pressed...Transition to BL mode\n\r");
@@ -117,6 +117,16 @@ int main(void)
 	 uart_printf("Executing user app\n\r");
 	 userApp();
  }
+
+
+ /* Infinite loop */
+ /* USER CODE BEGIN WHILE */
+ while (1)
+ {
+   /* USER CODE END WHILE */
+
+   /* USER CODE BEGIN 3 */
+ }
   /* USER CODE END 3 */
 }
 
@@ -125,7 +135,7 @@ void BL_UART_read_data(void)
 	uint8_t packet_len = 0;
 	while (1)
 	{
-		memset(BL_rx_buff, 0 , BL_RX_SIZE); //initialize with 0s
+		memset(BL_rx_buff, 0 , 200); //initialize with 0s
 
 		// read and decode the commands coming from host
 		HAL_UART_Receive(Command_UART, BL_rx_buff, 1, HAL_MAX_DELAY); //read one byte from the host, which is the length field of the command packet
@@ -137,6 +147,8 @@ void BL_UART_read_data(void)
 			case BL_GET_VER:
 				BL_getver_handler(BL_rx_buff);
 				break;
+			case BL_GET_RDP_STATUS:
+				BL_getrdp_handler(BL_rx_buff);
 			default:
 				uart_printf("Invalid command received from host\r\n");
 		}
@@ -181,32 +193,44 @@ void uart_printf (const char *fmt, ...) {
 /*Bootloader handler function implementations*/
 void BL_getver_handler(uint8_t *rx_buffer)
 {
-	uint32_t cmd_packet_len = BL_rx_buff[0] + 1;
+	//uart_printf("we are in getver command execution\r\n");
+	uint32_t cmd_packet_len = rx_buffer[0] + 1;
 	uint8_t BL_version;
 	// extract CRC sent by host
-	uint32_t host_crc = *((uint32_t*)(BL_rx_buff + cmd_packet_len - 4));
+	uint32_t host_crc = *((uint32_t *)(rx_buffer + cmd_packet_len - 4));
 
-	if (!BL_CRC_check(&BL_rx_buff[0], cmd_packet_len-4, host_crc)){
-		uart_printf("Check sum success\r\n");
+	if (!BL_CRC_check(&rx_buffer[0], cmd_packet_len-4, host_crc)){
+		//uart_printf("Check sum success\r\n");
 		BL_version = (uint8_t)BL_VERSION;
-		BL_send_ack(BL_rx_buff[0], 1);
+		BL_send_ack(rx_buffer[0], 1);
 		uart_printf("Bootloader version: %d %#x\r\n",BL_version,BL_version );
+		HAL_UART_Transmit(Command_UART,(uint8_t*)BL_version,1,HAL_MAX_DELAY);
+
 
 	}else{
-		uart_printf("Check sum success\r\n");
+		uart_printf("Check sum failed\r\n");
 		BL_send_nack();
 	}
 }
-void BL_gethelp_handler(uint8_t *rx_buffer)
-{
 
-}
-void BL_getcid_handler(uint8_t *rx_buffer)
-{
-
-}
 void BL_getrdp_handler(uint8_t *rx_buffer)
 {
+	uint8_t rdp_val = 0x00;
+	volatile uint32_t *pOptionByte = (uint32_t*)0x1FFFC000;
+	rdp_val = (uint8_t)(*pOptionByte >> 8); //reads bits 8 to 15 for protection level: 0xAA (L0), 0xCC(L2), and other(L1) for different protection levels
+	uint32_t cmd_packet_len = rx_buffer[0] + 1;
+	uint32_t host_crc = *((uint32_t *)(rx_buffer + cmd_packet_len - 4));
+
+	if (!BL_CRC_check(&rx_buffer[0], cmd_packet_len-4, host_crc)){
+		BL_send_ack(rx_buffer[0], 1);
+		uart_printf("BL_DEBUG_MSG:RDP level: %d %#x\n",rdp_val,rdp_val );
+		HAL_UART_Transmit(Command_UART,rdp_val,sizeof(rdp_val),HAL_MAX_DELAY);
+
+
+	}else{
+		uart_printf("BL_DEBUG_MSG:checksum fail !!\n");
+		BL_send_nack();
+	}
 
 }
 void BL_jump_handler(uint8_t *rx_buffer)
