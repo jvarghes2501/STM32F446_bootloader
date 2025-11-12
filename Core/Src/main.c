@@ -223,7 +223,7 @@ void BL_getrdp_handler(uint8_t *rx_buffer)
 
 	if (!BL_CRC_check(&rx_buffer[0], cmd_packet_len-4, host_crc)){
 		BL_send_ack(rx_buffer[0], 1);
-		uart_printf("BL_DEBUG_MSG:RDP level: %d %#x\n",rdp_val,rdp_val );
+		uart_printf("RDP level: %d %#x\n",rdp_val,rdp_val );
 		HAL_UART_Transmit(Command_UART,rdp_val,sizeof(rdp_val),HAL_MAX_DELAY);
 
 
@@ -233,12 +233,27 @@ void BL_getrdp_handler(uint8_t *rx_buffer)
 	}
 
 }
-void BL_jump_handler(uint8_t *rx_buffer)
-{
 
-}
 void BL_flash_erase_handler(uint8_t *rx_buffer)
 {
+	uint8_t erase_status = 0x00;
+	uint32_t cmd_packet_len = rx_buffer[0] + 1;
+	uint32_t host_crc = *((uint32_t *)(rx_buffer + cmd_packet_len - 4));
+
+	if (!BL_CRC_check(&rx_buffer[0], cmd_packet_len-4, host_crc)){
+		BL_send_ack(rx_buffer[0], 1);
+
+		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 1);
+		erase_status = flash_erase(rx_buffer[2], rx_buffer[3]);
+		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, 0);
+
+		HAL_UART_Transmit(Command_UART,&erase_status,sizeof(erase_status),HAL_MAX_DELAY);
+
+
+	}else{
+		uart_printf("BL_DEBUG_MSG:checksum fail !!\n");
+		BL_send_nack();
+	}
 
 }
 void BL_mem_write_handler(uint8_t *rx_buffer)
@@ -465,6 +480,33 @@ uint8_t BL_CRC_check(uint8_t *pData, uint32_t len, uint32_t crc_host)
 		return VERIFY_CRC_SUCCESS;
 	}
 	return VERIFY_CRC_FAIL;
+}
+
+uint8_t flash_erase(uint8_t sector_num, uint8_t num_of_sectors){
+	// number of sector between 0 and 7
+	// if sector number = 0xff is used for mass errasin
+	FLASH_EraseInitTypeDef FE_handle;
+	uint32_t sectorError;
+	HAL_StatusTypeDef status;
+
+	if (sector_num == 0xff){
+		FE_handle.TypeErase = FLASH_TYPEERASE_MASSERASE;
+	}
+	else{
+		if (sector_num <= 7){
+			FE_handle.TypeErase = FLASH_TYPEERASE_SECTORS;
+			FE_handle.Sector = sector_num;
+			FE_handle.NbSectors = num_of_sectors;
+		}
+	}
+	FE_handle.Banks = FLASH_BANK_1;
+
+	HAL_FLASH_Unlock();
+	FE_handle.VoltageRange = FLASH_VOLTAGE_RANGE_3; //voltage range for this MCU
+	status = (uint8_t)HAL_FLASHEx_Erase(&FE_handle, &sectorError);
+	HAL_FLASH_Lock();
+
+	return status;
 }
 /* USER CODE BEGIN 4 */
 
