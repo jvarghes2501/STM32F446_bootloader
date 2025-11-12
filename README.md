@@ -29,4 +29,3 @@ This project implements a **custom bootloader for STM32 microcontrollers** that 
 
 ---
 
-Would you like me to make it sound **more technical (for engineers)** or **more beginner-friendly (for students/tutorial readers)**? I can adjust the tone accordingly.
